@@ -3,7 +3,11 @@
 		"es6": true,
 		"node": true
 	},
-	"extends": ["plugin:@typescript-eslint/recommended", "prettier/@typescript-eslint", "plugin:prettier/recommended"],
+	"extends": [
+		"plugin:@typescript-eslint/recommended",
+		"prettier/@typescript-eslint",
+		"plugin:prettier/recommended"
+	],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 2018,
@@ -12,6 +16,7 @@
 	"plugins": ["@typescript-eslint", "prettier"],
 	"rules": {
 		"@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-		"prettier/prettier": "error"
+		"prettier/prettier": "error",
+		"array-element-newline": ["error", "consistent"]
 	}
 }
