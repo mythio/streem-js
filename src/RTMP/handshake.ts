@@ -74,13 +74,17 @@ const detectMessageFormat = (clientSign: Uint8Array): number => {
 	);
 	let computedSignature = calcHmac(msg, GenuineFPConst);
 	let providedSignature = clientSign.slice(sdl, sdl + HANDSHAKE.SHA256DL);
-	if (computedSignature.equals(providedSignature)) return HANDSHAKE.MESSAGE_FORMAT._2;
+	if (computedSignature.equals(providedSignature)) {
+		return HANDSHAKE.MESSAGE_FORMAT._2;
+	}
 
 	const cdl = getClientGenuineFPConstDigestOffset(clientSign.slice(8, 12));
 	msg = Buffer.concat([clientSign.slice(0, sdl), clientSign.slice(cdl + HANDSHAKE.SHA256DL)], 1504);
 	computedSignature = calcHmac(msg, GenuineFPConst);
 	providedSignature = clientSign.slice(sdl, sdl + HANDSHAKE.SHA256DL);
-	if (computedSignature.equals(providedSignature)) return HANDSHAKE.MESSAGE_FORMAT._1;
+	if (computedSignature.equals(providedSignature)) {
+		return HANDSHAKE.MESSAGE_FORMAT._1;
+	}
 
 	return HANDSHAKE.MESSAGE_FORMAT._0;
 };
@@ -126,17 +130,18 @@ const generateS2 = (messageFormat, clientsig): Buffer => {
 	return s2Bytes;
 };
 
-export const generateS0S1S2 = (clientsig: Uint8Array): Buffer => {
-	const clientType = Buffer.alloc(1, 3);
-	const messageFormat = detectMessageFormat(clientsig);
+export const generateS0S1S2 = (clientSign: Uint8Array): Buffer => {
+	const clientType = clientSign.slice(0, 1);
+	clientSign = clientSign.slice(1);
+	const messageFormat = detectMessageFormat(clientSign);
 	let buffer: Buffer;
 	if (messageFormat === HANDSHAKE.MESSAGE_FORMAT._0)
-		buffer = Buffer.concat([clientType, clientsig, clientsig]);
+		buffer = Buffer.concat([clientType, clientSign, clientSign]);
 	else {
 		buffer = Buffer.concat([
 			clientType,
 			generateS1(messageFormat),
-			generateS2(messageFormat, clientsig)
+			generateS2(messageFormat, clientSign)
 		]);
 	}
 	return buffer;
