@@ -175,4 +175,33 @@ export default class Connection extends EventEmitter {
 
 		return buffers;
 	}
+
+	public handleRtmpMessage(header, body: Buffer) {
+		switch (header.messageTypeID) {
+			case 0x01:
+				this.inChunkSize = body.readUInt32BE(0);
+				break;
+			case 0x04:
+				// @TODO: logs ping and client id
+				break;
+			case 0x08:
+				this.parseAudioMessage(header, body);
+				break;
+			case 0x09:
+				// @TODO Video message
+				break;
+			case 0x0f:
+				// @TODO AMF0 Data
+				break;
+			case 0x11:
+				// @TODO AMF0 Command
+				break;
+			case 0x12:
+				// @TODO AMF0 Data
+				break;
+			case 0x14:
+				// @TODO AMF0 Command
+				break;
+		}
+	}
 }
