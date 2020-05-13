@@ -40,6 +40,7 @@ export default class Connection extends EventEmitter {
 		pps: any;
 	};
 	sendBufferQueue: Buffer[];
+	producer: any;
 
 	constructor(id, socket, conns, producers) {
 		super();
@@ -593,6 +594,79 @@ export default class Connection extends EventEmitter {
 				for (const id in this.consumers) {
 					this.consumers[id].sendBufferQueue.push(rtmpMessage);
 				}
+			}
+		}
+	}
+
+	private parseVideoMessage(rtmpHeader, rtmpBody): void {
+		let index = 0;
+		let frameType = rtmpBody[0];
+		const codecId = frameType & 0x0f;
+		frameType = (frameType >> 4) & 0x0f;
+
+		if (codecId != 7) {
+			this.emit("error", new Error(`Only support video h.264/avc codec. actual=${codecId}`));
+			return;
+		}
+		const avcPacketType = rtmpBody[1];
+
+		if (avcPacketType == 0) {
+			if (this.isFirstVideoReceived) {
+				this.codec.avcProfile = rtmpBody[6];
+				this.codec.avcLevel = rtmpBody[8];
+				let lengthSizeMinusOne = rtmpBody[9];
+				lengthSizeMinusOne &= 0x03;
+				this.codec.NalUnitLength = lengthSizeMinusOne;
+
+				let numOfSequenceParameterSets = rtmpBody[10];
+				numOfSequenceParameterSets &= 0x1f;
+
+				if (numOfSequenceParameterSets != 1) {
+					this.emit("error", new Error("Decode video avc sequenc header sps failed"));
+					return;
+				}
+
+				this.codec.spsLen = rtmpBody.readUInt16BE(11);
+
+				index = 11 + 2;
+				if (this.codec.spsLen > 0) {
+					this.codec.sps = new Buffer(this.codec.spsLen);
+					rtmpBody.copy(this.codec.sps, 0, 13, 13 + this.codec.spsLen);
+				}
+
+				index += this.codec.spsLen;
+				let numOfPictureParameterSets = rtmpBody[index];
+				numOfPictureParameterSets &= 0x1f;
+				if (numOfPictureParameterSets != 1) {
+					this.emit("error", new Error("Decode video avc sequenc header pps failed."));
+					return;
+				}
+
+				index++;
+				this.codec.ppsLen = rtmpBody.readUInt16BE(index);
+				index += 2;
+				if (this.codec.ppsLen > 0) {
+					this.codec.pps = new Buffer(this.codec.ppsLen);
+					rtmpBody.copy(this.codec.pps, 0, index, index + this.codec.ppsLen);
+				}
+				this.isFirstVideoReceived = false;
+
+				this.producer.cacheVideoSequenceBuffer = new Buffer(rtmpBody);
+				for (const id in this.consumers) {
+					this.consumers[id].startPlay();
+				}
+			}
+		} else if (avcPacketType == 1) {
+			const sendRtmpHeader = {
+				chunkStreamID: 4,
+				timestamp: rtmpHeader.timestamp,
+				messageTypeID: 0x09,
+				messageStreamID: 1
+			};
+			const rtmpMessage = this.createRtmpMessage(sendRtmpHeader, rtmpBody);
+
+			for (const id in this.consumers) {
+				this.consumers[id].sendBufferQueue.push(rtmpMessage);
 			}
 		}
 	}
