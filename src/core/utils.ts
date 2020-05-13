@@ -50,52 +50,118 @@ export function* parseRtmpMessage(self): void {
 			message.chunkStreamId = (exStreamId[0] << 8) + exStreamId[1] + 64;
 		}
 
-		if (message.formatType == 0) {
-			// Type0 is 11B
-			if (self.bp.need(11)) yield;
+		// incomplete. Page 3 ctd..
+		switch (message.formatType) {
+			case 0: {
+				// 11B
+				if (self.bp.need(11)) yield;
 
-			chunkMessageHeader = self.bp.read(11);
-			message.timestamp = chunkMessageHeader.readIntBE(0, 3);
-			message.timestampDelta = 0;
-			message.messageLength = chunkMessageHeader.readIntBE(3, 3);
-			message.messageTypeID = chunkMessageHeader[6];
-			message.messageStreamID = chunkMessageHeader.readInt32LE(7);
-		} else if (message.formatType == 1) {
-			// Type1 is 7B
-			if (self.bp.need(7)) yield;
+				chunkMessageHeader = self.bp.read(11);
+				message.timestamp = chunkMessageHeader.readIntBE(0, 3);
+				message.timestampDelta = 0;
+				message.messageLength = chunkMessageHeader.readIntBE(3, 3);
+				message.messageTypeID = chunkMessageHeader[6];
+				message.messageStreamID = chunkMessageHeader.readInt32LE(7);
 
-			chunkMessageHeader = self.bp.read(7);
-			message.timestampDelta = chunkMessageHeader.readIntBE(0, 3);
-			message.messageLength = chunkMessageHeader.readIntBE(3, 3);
-			message.messageTypeID = chunkMessageHeader[6];
-			previousChunk = self.previousChunkMessage[message.chunkStreamID];
-			if (previousChunk != null) {
+				break;
+			}
+			case 1: {
+				// 7B
+				if (self.bp.need(7)) yield;
+
+				chunkMessageHeader = self.bp.read(7);
+				message.timestampDelta = chunkMessageHeader.readIntBE(0, 3);
+				message.messageLength = chunkMessageHeader.readIntBE(3, 3);
+				message.messageTypeID = chunkMessageHeader[6];
+				previousChunk = self.previousChunkMessage[message.chunkStreamID];
+
+				if (!previousChunk) {
+					log(
+						"ERROR",
+						`Type 1 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					);
+					throw new Error();
+				}
+
 				message.timestamp = previousChunk.timestamp;
 				message.messageStreamID = previousChunk.messageStreamID;
-			} else {
-				throw new Error(
-					"Chunk reference error for type 1: previous chunk for id " +
-						message.chunkStreamID +
-						" is not found"
-				);
-			}
-		} else if (message.formatType == 2) {
-			// Type2 is 3B
-			if (self.bp.need(3)) yield;
 
-			chunkBasicHeader = self.bp.read(3);
-			message.timestampDelta = chunkBasicHeader.readIntBE(0, 3);
-			previousChunk = self.previousChunkMessage[message.chunkStreamId];
-			if (previousChunk != null) {
+				break;
+			}
+			case 2: {
+				// 3B
+				if (self.bp.need(3)) yield;
+
+				chunkBasicHeader = self.bp.read(3);
+				message.timestampDelta = chunkBasicHeader.readIntBE(0, 3);
+				previousChunk = self.previousChunkMessage[message.chunkStreamId];
+
+				if (!previousChunk) {
+					log(
+						"ERROR",
+						`Type 2 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					);
+					throw new Error();
+				}
+
 				message.timestamp = previousChunk.timestamp;
 				message.messageStreamID = previousChunk.messageStreamID;
 				message.messageLength = previousChunk.messageLength;
 				message.messageTypeID = previousChunk.messageTypeID;
-			} else {
-				throw new Error(
-					`Chunk reference error for type 2: previous chunk for id ${message.chunkStreamID} is not found`
-				);
+				break;
+			}
+			case 3: {
+				// 0B
+				previousChunk = self.previousChunkMessage[message.chunkStreamID];
+
+				if (!previousChunk) {
+					log(
+						"ERROR",
+						`Type 3 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					);
+					throw new Error();
+				}
+
+				if (previousChunk != null) {
+					message.timestamp = previousChunk.timestamp;
+					message.messageStreamID = previousChunk.messageStreamId;
+					message.messageLength = previousChunk.messageLength;
+					message.timestampDelta = previousChunk.timestampDelta;
+					message.messageTypeID = previousChunk.messageTypeID;
+				}
+			}
+			case 4: {
+				log("ERROR", "err");
+				console.log(message.formatType);
+				// @TODO: Fix this
 			}
 		}
+
+		// handle extended timestamps
+		if (message.formatType == 0) {
+			if (message.timestamp == 0xffffff) {
+				if (self.bp.need(4)) yield;
+
+				const chunkBodyHeader = self.bp.read(4);
+
+				// @TODO spec had cbh[0] * Math.pow(256, 3), why?
+				message.timestamp =
+					(chunkBodyHeader[0] << 24) +
+					(chunkBodyHeader[1] << 16) +
+					(chunkBodyHeader[2] << 8) +
+					chunkBodyHeader[3];
+			}
+		} else {
+			if (self.bp.need(4)) yield;
+
+			const chunkBodyHeader = self.bp.read(4);
+			message.timestampDelta =
+				(chunkBodyHeader[0] << 24) +
+				(chunkBodyHeader[1] << 16) +
+				(chunkBodyHeader[2] << 8) +
+				chunkBodyHeader[3];
+		}
+		console.log("ezio");
+		console.log(message);
 	}
 }
