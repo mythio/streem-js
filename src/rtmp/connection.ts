@@ -284,7 +284,143 @@ export default class Connection extends EventEmitter {
 		}
 	}
 
-	private startPlay() {
+	private windowACK(size: number): void {
+		const rtmpBuffer = new Buffer("02000000000004050000000000000000", "hex");
+		rtmpBuffer.writeUInt32BE(size, 12);
+		this.socket.write(rtmpBuffer);
+	}
+
+	private setPeerBandwidth(size: number, type: number): void {
+		const rtmpBuffer = new Buffer("0200000000000506000000000000000000", "hex");
+		rtmpBuffer.writeUInt32BE(size, 12);
+		rtmpBuffer[16] = type;
+		this.socket.write(rtmpBuffer);
+	}
+
+	private setChunkSize(size): void {
+		const rtmpBuffer = new Buffer("02000000000004010000000000000000", "hex");
+		rtmpBuffer.writeUInt32BE(size, 12);
+		this.socket.write(rtmpBuffer);
+	}
+
+	private respondConnect(): void {
+		const opt = {
+			cmd: "_result",
+			transId: 1,
+			cmdObj: {
+				fmsVer: "FMS/3,0,1,123",
+				capabilities: 31
+			},
+			info: {
+				level: "status",
+				code: "NetConnection.Connect.Success",
+				description: "Connection succeeded.",
+				objectEncoding: this.objectEncoding
+			}
+		};
+		const rtmpBody = amf.encode(opt);
+		const rtmpMessage = this.createRtmpMessage(
+			{
+				chunkStreamID: 3,
+				timestamp: 0,
+				messageTypeID: 0x14,
+				messageStreamID: 0
+			},
+			rtmpBody
+		);
+		this.socket.write(rtmpMessage);
+	}
+
+	private respondRejectConnect(): void {
+		const opt = {
+			cmd: "_error",
+			transId: 1,
+			cmdObj: {
+				fmsVer: "FMS/3,0,1,123",
+				capabilities: 31
+			},
+			info: {
+				level: "error",
+				code: "NetConnection.Connect.Rejected",
+				description: "Connection failed.",
+				objectEncoding: this.objectEncoding
+			}
+		};
+		const rtmpBody = amf.encode(opt);
+		const rtmpMessage = this.createRtmpMessage(
+			{
+				chunkStreamID: 3,
+				timestamp: 0,
+				messageTypeID: 0x14,
+				messageStreamID: 0
+			},
+			rtmpBody
+		);
+		this.socket.write(rtmpMessage);
+	}
+
+	private respondCreateStream(cmd: any): void {
+		const opt = {
+			cmd: "_result",
+			transId: cmd.transId,
+			cmdObj: null,
+			info: 1
+		};
+		const rtmpBody = amf.encode(opt);
+		const rtmpMessage = this.createRtmpMessage(
+			{
+				chunkStreamID: 3,
+				timestamp: 0,
+				messageTypeID: 0x14,
+				messageStreamID: 0
+			},
+			rtmpBody
+		);
+		this.socket.write(rtmpMessage);
+	}
+
+	private respondPlay(): void {
+		let body = amf.encode({
+			cmd: "onStatus",
+			transId: 0,
+			cmdObj: null,
+			info: {
+				level: "status",
+				code: "NetStream.Play.Start",
+				description: "Start live"
+			}
+		});
+		let message = this.createRtmpMessage(
+			{
+				chunkStreamId: 3,
+				timestamp: 0,
+				messageTypeId: 0x14,
+				messageStreamId: 1
+			},
+			body
+		);
+		this.socket.write(message);
+
+		const opt = {
+			cmd: "|RtmpSampleAccess",
+			bool1: true,
+			bool2: true
+		};
+
+		body = amf.encode(opt);
+		message = this.createRtmpMessage(
+			{
+				chunkStreamId: 5,
+				timestamp: 0,
+				messageTypeId: 0x12,
+				messageStreamId: 1
+			},
+			body
+		);
+		this.socket.write(message);
+	}
+
+	private startPlay(): void {
 		const producer = this.producers[this.playStreamName];
 		if (
 			!producer.metadata ||
@@ -311,20 +447,20 @@ export default class Connection extends EventEmitter {
 
 		const audioSequenceMessage = this.createRtmpMessage(
 			{
-				chunkStreamID: 4,
+				chunkStreamId: 4,
 				timestamp: 0,
-				messageTypeID: 0x08,
-				messageStreamID: 1
+				messageTypeId: 0x08,
+				messageStreamId: 1
 			},
 			producer.cacheAudioSequenceBuffer
 		);
 
 		const videoSequenceMessage = this.createRtmpMessage(
 			{
-				chunkStreamID: 4,
+				chunkStreamId: 4,
 				timestamp: 0,
-				messageTypeID: 0x09,
-				messageStreamID: 1
+				messageTypeId: 0x09,
+				messageStreamId: 1
 			},
 			producer.cacheVideoSequenceBuffer
 		);
@@ -344,6 +480,75 @@ export default class Connection extends EventEmitter {
 			self.socket.write(self.sendBufferQueue.shift());
 		}
 		setTimeout(self.sendRtmpMessage, 100, self);
+	}
+
+	private respondPublish(): void {
+		const rtmpBody = amf.encode({
+			cmd: "onStatus",
+			transId: 0,
+			cmdObj: null,
+			info: {
+				level: "status",
+				code: "NetStream.Publish.Start",
+				description: "Start publishing"
+			}
+		});
+		const rtmpMessage = this.createRtmpMessage(
+			{
+				chunkStreamID: 5,
+				timestamp: 0,
+				messageTypeID: 0x14,
+				messageStreamID: 1
+			},
+			rtmpBody
+		);
+		this.socket.write(rtmpMessage);
+	}
+
+	private respondPublishError(): void {
+		const opt = {
+			cmd: "onStatus",
+			transId: 0,
+			cmdObj: null,
+			info: {
+				level: "error",
+				code: "NetStream.Publish.BadName",
+				description: "Already publishing"
+			}
+		};
+		const rtmpBody = amf.encode(opt);
+		const rtmpMessage = this.createRtmpMessage(
+			{
+				chunkStreamID: 5,
+				timestamp: 0,
+				messageTypeID: 0x14,
+				messageStreamID: 1
+			},
+			rtmpBody
+		);
+		this.socket.write(rtmpMessage);
+	}
+
+	private receiveSetDataFrame(method: string, obj: any): void {
+		if (method == "onMetaData") {
+			this.producers[this.publishStreamName].metaData = obj;
+		}
+	}
+
+	private parseUserControlMessage(buf: Buffer): any {
+		const eventType = (buf[0] << 8) + buf[1];
+		const eventData = buf.slice(2);
+		const message = {
+			eventType: eventType,
+			eventData: eventData
+		};
+		if (eventType === 3) {
+			message.streamID =
+				(eventData[0] << 24) + (eventData[1] << 16) + (eventData[2] << 8) + eventData[3];
+			message.bufferLength =
+				(eventData[4] << 24) + (eventData[5] << 16) + (eventData[6] << 8) + eventData[7];
+		}
+		return message;
 	}
 
 	private parseAudioMessage(header, body: Buffer): void {
