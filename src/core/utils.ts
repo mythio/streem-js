@@ -1,24 +1,8 @@
-import crypto from "crypto";
 import { log } from "../config/logger";
 import { generateS0S1S2 } from "../rtmp/handshake";
+import Connection from "../rtmp/connection";
 
-// @TODO cleanup. Last try to decode golomb/rice
-// Else stick to un-encrypted
-// Who cares?
-
-// export const generateSessionId = (): string => {
-// 	return crypto.randomBytes(8).toString("hex");
-// };
-
-// export const generateName = (): string => {
-// 	return crypto.randomBytes(4).toString("hex");
-// };
-
-// export const verify = (signString, streamId, secret): boolean => {
-// 	if (!signString) return false;
-// };
-
-export function* parseRtmpMessage(self): void {
+export function* parseRtmpMessage(self: Connection): void {
 	log("INFO", "Handshake start");
 	if (self.bp.need(1537)) yield;
 
@@ -161,7 +145,25 @@ export function* parseRtmpMessage(self): void {
 				(chunkBodyHeader[2] << 8) +
 				chunkBodyHeader[3];
 		}
-		console.log("ezio");
-		console.log(message);
+
+		const rtmpBody = [];
+		const rtmpBodySize = message.messageLength;
+		const chunkBodySize = self.getRealChunkSize(rtmpBodySize, self.inChunkSize);
+
+		if (self.bp.need(chunkBodySize)) yield;
+
+		const chunkBody = self.bp.read(chunkBodySize);
+		const chunkBodyPosition = 0;
+
+		do {
+			rtmpBodySize = Math.min(rtmpBodySize, self.inChunkSize);
+			rtmpBody.push(chunkBody.slice(chunkBodyPosition, chunkBodyPosition + rtmpBodySize));
+			rtmpBodySize -= rtmpBodySize;
+			chunkBodyPos += rtmpBodySize;
+		} while (rtmpBodySize > 0);
+
+		message.timestamp += message.timestampDelta;
+		self.previousChunkMessage[message.chunkStreamId] = message;
+		self.handleRtmpMessage(message, Buffer.concat(rtmpBody));
 	}
 }
