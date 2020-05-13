@@ -17,6 +17,7 @@
 	"rules": {
 		"@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
 		"prettier/prettier": "error",
-		"array-element-newline": ["error", "consistent"]
+		"array-element-newline": ["error", "consistent"],
+		"@typescript-eslint/no-use-before-define": "off"
 	}
 }
