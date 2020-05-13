@@ -80,7 +80,22 @@ export function* parseRtmpMessage(self): void {
 				);
 			}
 		} else if (message.formatType == 2) {
-			// @TODO implement type 2
+			// Type2 is 3B
+			if (self.bp.need(3)) yield;
+
+			chunkBasicHeader = self.bp.read(3);
+			message.timestampDelta = chunkBasicHeader.readIntBE(0, 3);
+			previousChunk = self.previousChunkMessage[message.chunkStreamId];
+			if (previousChunk != null) {
+				message.timestamp = previousChunk.timestamp;
+				message.messageStreamID = previousChunk.messageStreamID;
+				message.messageLength = previousChunk.messageLength;
+				message.messageTypeID = previousChunk.messageTypeID;
+			} else {
+				throw new Error(
+					`Chunk reference error for type 2: previous chunk for id ${message.chunkStreamID} is not found`
+				);
+			}
 		}
 	}
 }
