@@ -4,8 +4,9 @@ import * as config from "./";
 enum LOG_LEVEL {
 	NONE = 0,
 	ERROR = 1,
-	INFO = 2,
-	DEBUG = 3
+	WARN = 2,
+	INFO = 3,
+	DEBUG = 4
 }
 
 type Log = keyof typeof LOG_LEVEL;
@@ -25,14 +26,18 @@ export const log = (logType: Log, ...args: string[]): void => {
 			break;
 		}
 		case 2: {
+			if (logLevel < LOG_LEVEL.WARN) return;
+			console.log(getLocaleTime, process.pid, chalk.bold.bgYellowBright("W: "), ...args);
+			break;
+		}
+		case 3: {
 			if (logLevel < LOG_LEVEL.INFO) return;
 			console.log(getLocaleTime, process.pid, chalk.bold.bgGreenBright("I: "), ...args);
 			break;
 		}
-		case 3: {
+		case 4: {
 			if (logLevel < LOG_LEVEL.DEBUG) return;
 			console.log(getLocaleTime, process.pid, chalk.bold.bgBlueBright("D: "), ...args);
-			break;
 		}
 		default:
 			break;

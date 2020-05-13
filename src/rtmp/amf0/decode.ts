@@ -2,7 +2,7 @@
  * /// <reference path="https://github.com/delian/node-amfutils/blob/master/amfUtils.js" />
  */
 
-import { rtmpCmdDecode } from "./cmd";
+import { rtmpCmd } from "./cmd";
 
 type decodeData = {
 	length: number;
@@ -149,26 +149,6 @@ const decTypedObj = (buf: Buffer): decodeData => {
 	};
 };
 
-export const decodeAmf0Cmd = (dbuf): any => {
-	let buf = dbuf;
-	const resp: any = {};
-
-	const cmd = decodeOne(buf);
-	resp.cmd = cmd.value;
-	buf = buf.slice(cmd.length);
-
-	if (rtmpCmdDecode[cmd.value]) {
-		rtmpCmdDecode[cmd.value].forEach((n: string) => {
-			if (buf.length > 0) {
-				const res = decodeOne(buf);
-				buf = buf.slice(res.length);
-				resp[n] = res.value;
-			}
-		});
-	}
-	return resp;
-};
-
 const decodeRules = {
 	0x00: decNumber,
 	0x01: decBool,
@@ -187,4 +167,24 @@ const decodeRules = {
 	// 0x0E: decRecSet, //      Not implemented in the specs
 	0x0f: decXmlDoc,
 	0x10: decTypedObj
+};
+
+export const decodeAmf0Cmd = (dbuf: Buffer): any => {
+	let buf = dbuf;
+	const resp: any = {};
+
+	const cmd = decodeOne(buf);
+	resp.cmd = cmd.value;
+	buf = buf.slice(cmd.length);
+
+	if (rtmpCmd[cmd.value]) {
+		rtmpCmd[cmd.value].forEach((n: string) => {
+			if (buf.length > 0) {
+				const res = decodeOne(buf);
+				buf = buf.slice(res.length);
+				resp[n] = res.value;
+			}
+		});
+	}
+	return resp;
 };

@@ -1,4 +1,4 @@
-export const rtmpCmdDecode = {
+export const rtmpCmd = {
 	_result: ["transId", "cmdObj", "info"],
 	_error: ["transId", "cmdObj", "info", "streamId"],
 	"@setDataFrame": ["method", "cmdObj"],

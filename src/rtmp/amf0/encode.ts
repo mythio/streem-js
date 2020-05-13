@@ -2,6 +2,8 @@
  * /// <reference path="https://github.com/delian/node-amfutils/blob/master/amfUtils.js" />
  */
 
+import { rtmpCmd } from "./cmd";
+
 const amfType = (obj: any): string => {
 	const jsType = typeof obj;
 
@@ -111,7 +113,7 @@ const encNull = (): Buffer => {
 	return buf;
 };
 
-export const encodeRules = {
+const encodeRules = {
 	string: encString,
 	integer: encNumber,
 	double: encNumber,
@@ -124,4 +126,15 @@ export const encodeRules = {
 	false: encBool,
 	undefined: encUndefined,
 	null: encNull
+};
+
+export const encodeAmf0Cmd = (opt: any): Buffer => {
+	let data = encodeOne(opt.cmd);
+
+	if (rtmpCmd[opt.cmd]) {
+		rtmpCmd[opt.cmd].forEach((n) => {
+			if (opt.hasOwnProperty(n)) data = Buffer.concat([data, encodeOne(opt[n])]);
+		});
+	}
+	return data;
 };

@@ -1,6 +1,6 @@
 import { Readable } from "stream";
 
-export class BufferPool extends Readable {
+export default class BufferPool extends Readable {
 	private totalBufferLength: number;
 	private needBufferLength: number;
 	private gFun: any;
