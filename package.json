@@ -4,6 +4,8 @@
 	"description": "RTMP server implementation",
 	"main": "index.js",
 	"scripts": {
+		"start": "node -r source-map-support/register dist/server.js",
+		"build": "rm -rf dist && webpack --config webpack.$NODE_ENV.js",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"repository": {

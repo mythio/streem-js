@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import Connection from "../rtmp/connection";
 
 export default class BufferPool extends Readable {
 	private totalBufferLength: number;
@@ -9,7 +10,7 @@ export default class BufferPool extends Readable {
 		super(options);
 	}
 
-	init(gFun: any): void {
+	init(gFun: Generator<Connection>): void {
 		this.totalBufferLength = 0;
 		this.needBufferLength = 0;
 		this.gFun = gFun;

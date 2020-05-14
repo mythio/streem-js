@@ -1,25 +1,27 @@
 import { log } from "../config/logger";
 import { generateS0S1S2 } from "../rtmp/handshake";
-import Connection from "../rtmp/connection";
 
-export function* parseRtmpMessage(self: Connection): void {
+export function* parseRtmpMessage(self: any) {
 	log("INFO", "Handshake start");
+	console.log(self.bp);
 	if (self.bp.need(1537)) yield;
 
 	const c0c1 = self.bp.read(1537);
+	console.log(c0c1);
 	const s0s1s2 = generateS0S1S2(c0c1);
 	self.socket.write(s0s1s2);
-	if (self.bp.need(1526)) yield;
+	if (self.bp.need(1536)) yield;
 
+	const c2 = self.bp.read(1536);
 	log("INFO", "Handshake Success");
 
 	while (self.isStarting) {
-		const message = {};
+		const message: any = {};
 		let chunkMessageHeader: Buffer = null;
-		const previousChunk = null;
+		let previousChunk = null;
 		if (self.bp.need(1)) yield;
 
-		const chunkBasicHeader = self.bp.read(1);
+		let chunkBasicHeader = self.bp.read(1);
 		message.formatType = chunkBasicHeader[0] >> 6;
 		message.chunkStreamId = chunkBasicHeader[0] & 0x3f;
 		if (message.chunkStreamId == 0) {
@@ -127,8 +129,6 @@ export function* parseRtmpMessage(self: Connection): void {
 				if (self.bp.need(4)) yield;
 
 				const chunkBodyHeader = self.bp.read(4);
-
-				// @TODO spec had cbh[0] * Math.pow(256, 3), why?
 				message.timestamp =
 					(chunkBodyHeader[0] << 24) +
 					(chunkBodyHeader[1] << 16) +
@@ -146,24 +146,30 @@ export function* parseRtmpMessage(self: Connection): void {
 				chunkBodyHeader[3];
 		}
 
-		const rtmpBody = [];
-		const rtmpBodySize = message.messageLength;
-		const chunkBodySize = self.getRealChunkSize(rtmpBodySize, self.inChunkSize);
+		const body = [];
+		let bodySize = message.messageLength;
+		const chunkBodySize = self.getRealChunkSize(bodySize, self.inChunkSize);
 
 		if (self.bp.need(chunkBodySize)) yield;
 
 		const chunkBody = self.bp.read(chunkBodySize);
-		const chunkBodyPosition = 0;
+		let chunkBodyPosition = 0;
 
 		do {
-			rtmpBodySize = Math.min(rtmpBodySize, self.inChunkSize);
-			rtmpBody.push(chunkBody.slice(chunkBodyPosition, chunkBodyPosition + rtmpBodySize));
-			rtmpBodySize -= rtmpBodySize;
-			chunkBodyPos += rtmpBodySize;
-		} while (rtmpBodySize > 0);
+			if (bodySize > self.inChunkSize) {
+				body.push(chunkBody.slice(chunkBodyPosition, chunkBodyPosition + self.inChunkSize));
+				bodySize -= self.inChunkSize;
+				chunkBodyPosition += self.inChunkSize;
+				chunkBodyPosition++;
+			} else {
+				body.push(chunkBody.slice(chunkBodyPosition, chunkBodyPosition + bodySize));
+				bodySize -= bodySize;
+				chunkBodyPosition += bodySize;
+			}
+		} while (bodySize > 0);
 
 		message.timestamp += message.timestampDelta;
 		self.previousChunkMessage[message.chunkStreamId] = message;
-		self.handleRtmpMessage(message, Buffer.concat(rtmpBody));
+		self.handleMessage(message, Buffer.concat(body));
 	}
 }
