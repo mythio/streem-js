@@ -1,17 +1,13 @@
-import RtmpServer from "./rtmp/session";
-const rtmpServer = new RtmpServer();
+import Server from "./server";
+const server = new Server();
 
-rtmpServer.on("error", (err) => {
+server.on("error", (err) => {
 	throw err;
 });
 
-rtmpServer.on("client", (client) => {
-	client.on("command", (command) => {
-		console.log(command.cmd, command);
-	});
-
+server.on("client", (client) => {
 	client.on("connect", () => {
-		console.log("connect", client.app);
+		console.log("CONNECT", client.app);
 	});
 
 	client.on("play", ({ streamName }) => {
@@ -23,8 +19,8 @@ rtmpServer.on("client", (client) => {
 	});
 
 	client.on("stop", () => {
-		console.log("client disconnected");
+		console.log("DISCONNECT");
 	});
 });
 
-rtmpServer.listen(1935);
+server.listen(1935);

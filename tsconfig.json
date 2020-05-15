@@ -3,7 +3,7 @@
 		"target": "es6",
 		"module": "commonjs",
 		"lib": ["ES6", "DOM"],
-		"types": ["node", "reflect-metadata"],
+		"types": ["node"],
 		"outDir": "dist",
 		"rootDir": "src",
 		"removeComments": true,
