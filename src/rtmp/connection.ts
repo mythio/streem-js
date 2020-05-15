@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/camelcase */
 import { EventEmitter } from "events";
 
 import BufferPool from "../core/bufferPool";
@@ -26,8 +27,7 @@ export default class Connection extends EventEmitter {
 	publishStreamName: string;
 	bp: BufferPool;
 	parser: any;
-	codec: any;
-	// codec: any: {
+	// codec: {
 	// 	aacProfile?;
 	// 	aacSampleRate?;
 	// 	aacChannels?;
@@ -47,6 +47,7 @@ export default class Connection extends EventEmitter {
 	// 	ppsLen: number;
 	// 	pps: any;
 	// };
+	codec: any;
 	sendBufferQueue: Buffer[];
 	producer: any;
 	app: any;
@@ -73,23 +74,26 @@ export default class Connection extends EventEmitter {
 		this.playStreamName = "";
 		this.publishStreamName = "";
 
-		this.bp = new BufferPool(undefined);
-		this.bp._read = (): any => {
-			console.log(1);
+		this.bp = new BufferPool(null);
+		this.bp._read = (): void => {
+			// console.log(1);
+			const a = 1;
 		};
 		this.bp.on("error", () => {
-			console.log(2);
+			const a = 1;
 		});
+
+		this.parser = parseRtmpMessage(this);
 
 		this.codec = {
 			width: 0,
 			height: 0,
 			duration: 0,
-			frameRate: 0,
-			videoDataRate: 0,
-			audioSampleRate: 0,
-			audioSampleSize: 0,
-			audioDataRate: 0,
+			framerate: 0,
+			videodatarate: 0,
+			audiosamplerate: 0,
+			audiosamplesize: 0,
+			audiodatarate: 0,
 			spsLen: 0,
 			sps: null,
 			ppsLen: 0,
@@ -97,12 +101,6 @@ export default class Connection extends EventEmitter {
 		};
 
 		this.sendBufferQueue = [];
-
-		// this.parser = parseRtmpMessage(this);
-	}
-
-	attach() {
-		this.parser = parseRtmpMessage(this);
 	}
 
 	public run(): void {
@@ -140,14 +138,15 @@ export default class Connection extends EventEmitter {
 		const formatId = 0;
 		let bodySize = body.length;
 
-		if (!header.chunkStreamID)
+		// console.log(header);
+		if (header.chunkStreamId == null)
 			log("WARN", `createRtmpMessage(): chunkStreamId is not set for RTMP`);
-		if (!header.timestamp)
+		if (header.timestamp == null)
 			log("WARN", `createRtmpMessage(): timestamp is not set for RTMP message`);
-		if (!header.messageTypeID)
-			log("WARN", `createRtmpMessage(): messageTypeID is not set for RTMP message`);
-		if (!header.messageStreamID)
-			log("WARN", `createRtmpMessage(): messageStreamID is not set for RTMP message`);
+		if (header.messageTypeId == null)
+			log("WARN", `createRtmpMessage(): messageTypeId is not set for RTMP message`);
+		if (header.messageStreamId == null)
+			log("WARN", `createRtmpMessage(): messageStreamId is not set for RTMP message`);
 
 		let useExtendedTimestamp = false;
 		let timestamp: number[];
@@ -190,7 +189,7 @@ export default class Connection extends EventEmitter {
 
 		let bodyPos = 0;
 		const chunkBody = [];
-		const type3Header = Buffer.from([(3 << 6) | header.chunkStreamID]);
+		const type3Header = Buffer.from([(3 << 6) | header.chunkStreamId]);
 
 		do {
 			if (bodySize > this.outChunkSize) {
@@ -212,12 +211,11 @@ export default class Connection extends EventEmitter {
 	}
 
 	public handleMessage(header, body: Buffer): void {
-		switch (header.messageTypeID) {
+		switch (header.messageTypeId) {
 			case 0x01:
 				this.inChunkSize = body.readUInt32BE(0);
 				break;
 			case 0x04:
-				// @TODO: logs ping and client id
 				break;
 			case 0x08:
 				this.parseAudioMessage(header, body);
@@ -237,7 +235,6 @@ export default class Connection extends EventEmitter {
 			}
 			case 0x12: {
 				const cmd = amf.decode(body);
-				console.log(cmd);
 				this.receiveSetDataFrame(cmd.method, cmd.cmdObj);
 				break;
 			}
@@ -440,9 +437,9 @@ export default class Connection extends EventEmitter {
 	private startPlay(): void {
 		const producer = this.producers[this.playStreamName];
 		if (
-			!producer.metadata ||
-			!producer.cacheAudioSequenceBuffer ||
-			!producer.cacheAudioSequenceBuffer
+			producer.metadata == null ||
+			producer.cacheAudioSequenceBuffer == null ||
+			producer.cacheAudioSequenceBuffer == null
 		)
 			return;
 
@@ -542,63 +539,76 @@ export default class Connection extends EventEmitter {
 
 	private parseAudioMessage(header, body: Buffer): void {
 		// Found this code only for aac codec ;_;
-		console.log(header);
 		if (this.isFirstAudioReceived) {
-			const aacPacketType = body[1];
-			if (aacPacketType == 0) {
-				this.codec.aacProfile = body[2];
-				this.codec.aacSampleRate = body[3];
+			let sound_format = body[0];
+			sound_format = (sound_format >> 4) & 0x0f;
+			if (sound_format != 10) {
+				this.emit("error", new Error(`Only support audio aac codec. actual=${sound_format}`));
+				return;
+			}
 
-				this.codec.aacChannels = (this.codec.aacSampleRate >> 3) & 0x0f;
-				this.codec.aacSampleRate =
-					((this.codec.aacProfile << 1) & 0x0e) | ((this.codec.aacSampleRate >> 7) & 0x01);
-				this.codec.aacProfile = (this.codec.aacProfile >> 3) & 0x1f;
-				this.codec.audioSampleRate = AAC_SAMPLE_RATES[this.codec.aacSampleRate];
-				if (this.codec.aacProfile == 0 || this.codec.aacProfile == 0x1f) {
-					this.emit("error", new Error());
+			const aac_packet_type = body[1];
+			if (aac_packet_type == 0) {
+				this.codec.aac_profile = body[2];
+				this.codec.aac_sample_rate = body[3];
+
+				this.codec.aac_channels = (this.codec.aac_sample_rate >> 3) & 0x0f;
+				this.codec.aac_sample_rate =
+					((this.codec.aac_profile << 1) & 0x0e) | ((this.codec.aac_sample_rate >> 7) & 0x01);
+				this.codec.aac_profile = (this.codec.aac_profile >> 3) & 0x1f;
+				this.codec.audiosamplerate = AAC_SAMPLE_RATES[this.codec.aac_sample_rate];
+				if (this.codec.aac_profile == 0 || this.codec.aac_profile == 0x1f) {
+					this.emit(
+						"error",
+						new Error(
+							"Parse audio aac sequence header failed," +
+								` adts object=${this.codec.aac_profile} invalid`
+						)
+					);
+					return;
 				}
-				--this.codec.aacProfile;
+				this.codec.aac_profile--;
 				this.isFirstAudioReceived = false;
 				this.producer.cacheAudioSequenceBuffer = new Buffer(body);
 
 				for (const id in this.consumers) {
 					this.consumers[id].startPlay();
 				}
-			} else {
-				const sendHeader = {
-					chunkStreamID: 4,
-					timestamp: header.timestamp,
-					messageTypeID: 0x08,
-					messageStreamID: 1
-				};
-				const message = this.createMessage(sendHeader, body);
+			}
+		} else {
+			const sendRtmpHeader = {
+				chunkStreamId: 4,
+				timestamp: header.timestamp,
+				messageTypeId: 0x08,
+				messageStreamId: 1
+			};
+			const rtmpMessage = this.createMessage(sendRtmpHeader, body);
 
-				for (const id in this.consumers) {
-					this.consumers[id].sendBufferQueue.push(message);
-				}
+			for (const id in this.consumers) {
+				this.consumers[id].sendBufferQueue.push(rtmpMessage);
 			}
 		}
 	}
 
 	private parseVideoMessage(header, body): void {
 		let index = 0;
-		let frameType = body[0];
-		const codecId = frameType & 0x0f;
-		frameType = (frameType >> 4) & 0x0f;
-
-		if (codecId != 7) {
-			this.emit("error", new Error(`Only support video h.264/avc codec. actual=${codecId}`));
+		let frame_type = body[0];
+		const codec_id = frame_type & 0x0f;
+		frame_type = (frame_type >> 4) & 0x0f;
+		// only support h.264/avc
+		if (codec_id != 7) {
+			this.emit("error", new Error(`Only support video h.264/avc codec. actual=${codec_id}`));
 			return;
 		}
-		const avcPacketType = body[1];
+		const avc_packet_type = body[1];
 
-		if (avcPacketType == 0) {
+		if (avc_packet_type == 0) {
 			if (this.isFirstVideoReceived) {
-				this.codec.avcProfile = body[6];
-				this.codec.avcLevel = body[8];
+				this.codec.avc_profile = body[6];
+				this.codec.avc_level = body[8];
 				let lengthSizeMinusOne = body[9];
 				lengthSizeMinusOne &= 0x03;
-				this.codec.nalUnitLength = lengthSizeMinusOne;
+				this.codec.NAL_unit_length = lengthSizeMinusOne;
 
 				let numOfSequenceParameterSets = body[10];
 				numOfSequenceParameterSets &= 0x1f;
@@ -638,22 +648,22 @@ export default class Connection extends EventEmitter {
 					this.consumers[id].startPlay();
 				}
 			}
-		} else if (avcPacketType == 1) {
-			const sendHeader = {
-				chunkStreamID: 4,
+		} else if (avc_packet_type == 1) {
+			const sendRtmpHeader = {
+				chunkStreamId: 4,
 				timestamp: header.timestamp,
-				messageTypeID: 0x09,
-				messageStreamID: 1
+				messageTypeId: 0x09,
+				messageStreamId: 1
 			};
-			const message = this.createMessage(sendHeader, body);
+			const rtmpMessage = this.createMessage(sendRtmpHeader, body);
 
 			for (const id in this.consumers) {
-				this.consumers[id].sendBufferQueue.push(message);
+				this.consumers[id].sendBufferQueue.push(rtmpMessage);
 			}
 		}
 	}
 
-	private sendStreamEOF(): void {
+	public sendStreamEOF(): void {
 		const buffer = new Buffer("020000000000060400000000000100000001", "hex");
 		this.socket.write(buffer);
 	}
