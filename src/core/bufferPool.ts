@@ -4,36 +4,41 @@ import Connection from "../rtmp/connection";
 export default class BufferPool extends Readable {
 	private totalBufferLength: number;
 	private needBufferLength: number;
-	private gFun: any;
+	private generatorFun: Generator<Connection>;
 
-	constructor(options) {
+	constructor(options?: object) {
+		console.log(options);
 		super(options);
 	}
 
-	init(gFun: Generator<Connection>): void {
+	public init(generatorFun: Generator<Connection>): void {
 		this.totalBufferLength = 0;
 		this.needBufferLength = 0;
-		this.gFun = gFun;
-		this.gFun.next();
+		this.generatorFun = generatorFun;
+		this.generatorFun.next();
 	}
 
-	push(buf: Buffer): boolean {
+	public push(buf: Buffer): boolean {
+		super.push(buf);
 		this.totalBufferLength += buf.length;
 		if (this.needBufferLength > 0 && this.needBufferLength <= this.totalBufferLength)
-			this.gFun.next();
-		return super.push(buf);
+			this.generatorFun.next();
+
+		return true;
 	}
 
-	read(size: number): any {
+	public read(size: number): Buffer {
 		this.totalBufferLength -= size;
+
 		return super.read(size);
 	}
 
-	need(size: number): boolean {
-		const ret = this.totalBufferLength < size;
-		if (ret) {
+	public need(size: number): boolean {
+		const isAvail = this.totalBufferLength < size;
+		if (isAvail) {
 			this.needBufferLength = size;
 		}
-		return ret;
+
+		return isAvail;
 	}
 }
