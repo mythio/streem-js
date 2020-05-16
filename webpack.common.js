@@ -12,7 +12,7 @@ module.exports = {
 		]
 	},
 	output: {
-		filename: "server.js",
+		filename: "index.js",
 		path: path.resolve(__dirname, "dist")
 	},
 	resolve: {
