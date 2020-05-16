@@ -1,10 +1,8 @@
-import { log } from "../config/logger";
+import { logger } from "../config/logger";
 import { generateS0S1S2 } from "../rtmp/handshake";
 import Connection from "../rtmp/connection";
 
 export function* parseMessage(self: Connection): Generator<Connection> {
-	log("INFO", "Handshake start");
-
 	if (self.bp.need(1537)) yield;
 
 	const c0c1 = self.bp.read(1537);
@@ -14,7 +12,7 @@ export function* parseMessage(self: Connection): Generator<Connection> {
 	if (self.bp.need(1536)) yield;
 
 	self.bp.read(1536);
-	log("INFO", "Handshake Success");
+	logger.info("HANDSHAKE OK");
 
 	while (self.isStarting) {
 		const message: any = {};
@@ -63,9 +61,8 @@ export function* parseMessage(self: Connection): Generator<Connection> {
 				previousChunk = self.previousChunkMessage[message.chunkStreamId];
 
 				if (previousChunk == null) {
-					log(
-						"ERROR",
-						`Type 1 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					logger.error(
+						`MF TYPE 1: Chunk ref error. Previous chunk with id ${message.chunkStreamId} was not found.`
 					);
 					throw new Error();
 				}
@@ -84,9 +81,8 @@ export function* parseMessage(self: Connection): Generator<Connection> {
 				previousChunk = self.previousChunkMessage[message.chunkStreamId];
 
 				if (previousChunk == null) {
-					log(
-						"ERROR",
-						`Type 2 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					logger.error(
+						`MF TYPE 2: Chunk ref error. Previous chunk with id ${message.chunkStreamId} was not found.`
 					);
 					throw new Error();
 				}
@@ -103,9 +99,8 @@ export function* parseMessage(self: Connection): Generator<Connection> {
 				previousChunk = self.previousChunkMessage[message.chunkStreamId];
 
 				if (previousChunk == null) {
-					log(
-						"ERROR",
-						`Type 3 chunk ref error\nPrevious chunk with id ${message.chunkStreamId} was not found`
+					logger.error(
+						`MF TYPE 3: Chunk ref error. Previous chunk with id ${message.chunkStreamId} was not found.`
 					);
 					throw new Error();
 				}
@@ -119,7 +114,7 @@ export function* parseMessage(self: Connection): Generator<Connection> {
 				break;
 			}
 			default: {
-				log("ERROR", "err");
+				logger.error("MF ERROR: Unknow message format type recieved.");
 			}
 		}
 		if (message.formatType == 0) {

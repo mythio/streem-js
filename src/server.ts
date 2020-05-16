@@ -1,14 +1,13 @@
 import net from "net";
 import crypto from "crypto";
 
-// import Connection from "./rtmp/client";
 import Connection from "./rtmp/connection";
 
 export default class Server extends net.Server {
 	private conns: {};
 	private producers: {};
 
-	constructor(option?) {
+	constructor(option?: unknown) {
 		super(option);
 
 		this.conns = {};
@@ -25,6 +24,7 @@ export default class Server extends net.Server {
 			socket.on("error", (err) => connection.emit("error", err));
 
 			this.emit("client", connection);
+
 			connection.run();
 		});
 	}

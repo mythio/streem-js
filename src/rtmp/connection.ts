@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import { EventEmitter } from "events";
 
-import BufferPool from "../core/bufferPool";
 import amf from "../core/amf0";
-import { log } from "../config/logger";
+import { logger } from "../config/logger";
+import BufferPool from "../core/bufferPool";
 import { parseMessage } from "../core/utils";
 import { AAC_SAMPLE_RATES } from "../constant/aac";
 
@@ -89,16 +89,22 @@ export default class Connection extends EventEmitter {
 		this.isStarting = false;
 
 		if (this.publishStreamName != "") {
+			logger.debug(`Send EOF to consumers of publisher ${this.publishStreamName}.`);
+
 			for (const id in this.consumers) {
 				this.consumers[id].sendStreamEOF();
 			}
+
+			logger.debug(`Delete publisher ${this.publishStreamName} from producers.`);
 			delete this.producers[this.publishStreamName];
 		} else if (this.playStreamName != "") {
 			if (this.producers[this.playStreamName]) {
+				logger.debug(`Delete player ${this.playStreamName} from consumers.`);
 				delete this.producers[this.playStreamName].consumers[this.id];
 			}
 		}
 
+		logger.debug(`Delete client from connections ID ${this.id}.`);
 		delete this.conns[this.id];
 
 		this.emit("stop");
@@ -124,9 +130,7 @@ export default class Connection extends EventEmitter {
 			header.messageTypeId == null ||
 			header.messageStreamId == null
 		) {
-			console.warn(
-				"[rtmp] warning: createRtmpMessage(): chunkStreamId is not set for RTMP" + " message"
-			);
+			logger.warn("Header is not complete for RTMP.");
 		}
 
 		let useExtendedTimestamp = false;
@@ -143,7 +147,7 @@ export default class Connection extends EventEmitter {
 			];
 		}
 
-		let buffer = new Buffer([
+		let buffer = Buffer.from([
 			(formatTypeId << 6) | header.chunkStreamId,
 			timestamp[0],
 			timestamp[1],
@@ -159,7 +163,7 @@ export default class Connection extends EventEmitter {
 		]);
 
 		if (useExtendedTimestamp) {
-			const extendedTimestamp = new Buffer([
+			const extendedTimestamp = Buffer.from([
 				(header.timestamp >> 24) & 0xff,
 				(header.timestamp >> 16) & 0xff,
 				(header.timestamp >> 8) & 0xff,
@@ -170,7 +174,7 @@ export default class Connection extends EventEmitter {
 
 		let bodyPos = 0;
 		const chunkBody = [];
-		const type3Header = new Buffer([(3 << 6) | header.chunkStreamId]);
+		const type3Header = Buffer.from([(3 << 6) | header.chunkStreamId]);
 
 		do {
 			if (bodyLength > this.outChunkSize) {
@@ -248,6 +252,8 @@ export default class Connection extends EventEmitter {
 
 		switch (cmd.cmd) {
 			case "connect": {
+				logger.info(`RTMP: Connect app ${cmd.cmdObj.app}.`);
+
 				this.connectCmdObj = cmd.cmdObj;
 				this.app = this.connectCmdObj.app;
 				this.objectEncoding = cmd.cmdObj.objectEncoding != null ? cmd.cmdObj.objectEncoding : 0;
@@ -265,6 +271,8 @@ export default class Connection extends EventEmitter {
 				break;
 			}
 			case "play": {
+				logger.info(`RTMP: Play stream ${cmd.streamName}.`);
+
 				const streamName = this.connectCmdObj.app + "/" + cmd.streamName;
 				this.playStreamName = streamName;
 
@@ -272,6 +280,8 @@ export default class Connection extends EventEmitter {
 				this.respondPlay();
 
 				if (!this.producers[streamName]) {
+					logger.warn(`RTMP: No stream named ${streamName}.`);
+
 					this.producers[streamName] = {
 						id: null,
 						consumers: {}
@@ -282,6 +292,7 @@ export default class Connection extends EventEmitter {
 				break;
 			}
 			case "publish": {
+				logger.info(`RTMP: Publish stream ${cmd.streamName}.`);
 				const streamName = this.connectCmdObj.app + "/" + cmd.streamName;
 				if (!this.producers[streamName]) {
 					this.producers[streamName] = {
@@ -533,7 +544,7 @@ export default class Connection extends EventEmitter {
 			sound_format = (sound_format >> 4) & 0x0f;
 
 			if (sound_format != 10) {
-				this.emit("error", new Error(`Only support audio aac codec. actual=${sound_format}`));
+				this.emit("error", new Error(`Only support audio aac codec. actual=${sound_format}.`));
 				return;
 			}
 
@@ -550,14 +561,13 @@ export default class Connection extends EventEmitter {
 				this.codec.audiosamplerate = AAC_SAMPLE_RATES[this.codec.aac_sample_rate];
 
 				if (this.codec.aac_profile == 0 || this.codec.aac_profile == 0x1f) {
-					this.emit("error", new Error(`Failed to parse audio AAC sequence header`));
-
+					this.emit("error", new Error(`Failed to parse audio AAC sequence header.`));
 					return;
 				}
 
 				this.codec.aac_profile--;
 				this.isFirstAudioReceived = false;
-				this.producer.cacheAudioSequenceBuffer = new Buffer(body);
+				this.producer.cacheAudioSequenceBuffer = Buffer.from(body);
 
 				for (const id in this.consumers) {
 					this.consumers[id].startPlay();
@@ -585,7 +595,7 @@ export default class Connection extends EventEmitter {
 		frame_type = (frame_type >> 4) & 0x0f;
 
 		if (codec_id != 7) {
-			this.emit("error", new Error("Only H.264/AVC codec supported"));
+			this.emit("error", new Error("Only H.264/AVC codec supported."));
 			return;
 		}
 
@@ -605,7 +615,7 @@ export default class Connection extends EventEmitter {
 				numOfSequenceParameterSets &= 0x1f;
 
 				if (numOfSequenceParameterSets != 1) {
-					this.emit("error", new Error("Decode video AVC sequence header SPS failed"));
+					this.emit("error", new Error("Decode video AVC sequence header SPS failed."));
 					return;
 				}
 
@@ -613,7 +623,7 @@ export default class Connection extends EventEmitter {
 
 				index = 13;
 				if (this.codec.spsLen > 0) {
-					this.codec.sps = new Buffer(this.codec.spsLen);
+					this.codec.sps = Buffer.alloc(this.codec.spsLen);
 					body.copy(this.codec.sps, 0, 13, 13 + this.codec.spsLen);
 				}
 
@@ -632,13 +642,13 @@ export default class Connection extends EventEmitter {
 				index += 2;
 
 				if (this.codec.ppsLen > 0) {
-					this.codec.pps = new Buffer(this.codec.ppsLen);
+					this.codec.pps = Buffer.alloc(this.codec.ppsLen);
 					body.copy(this.codec.pps, 0, index, index + this.codec.ppsLen);
 				}
 
 				this.isFirstVideoReceived = false;
 
-				this.producer.cacheVideoSequenceBuffer = new Buffer(body);
+				this.producer.cacheVideoSequenceBuffer = Buffer.from(body);
 
 				for (const id in this.consumers) {
 					this.consumers[id].startPlay();

@@ -1,26 +1,34 @@
 import Server from "./server";
+import { logger } from "./config/logger";
+import { config } from "./config/config";
+
 const server = new Server();
 
 server.on("error", (err) => {
 	throw err;
 });
 
-server.on("client", (client) => {
-	client.on("connect", () => {
-		console.log("CONNECT", client.app);
+server.on("client", (connection) => {
+	connection.on("connect", () => {
+		logger.info(`CONNECT: ${connection.app}`);
 	});
 
-	client.on("play", ({ streamName }) => {
-		console.log("PLAY", streamName);
+	connection.on("play", ({ streamName }) => {
+		logger.info(`PLAY: ${streamName}`);
 	});
 
-	client.on("publish", ({ streamName }) => {
-		console.log("PUBLISH", streamName);
+	connection.on("publish", ({ streamName }) => {
+		logger.info(`PUBLISH: ${streamName}`);
 	});
 
-	client.on("stop", () => {
-		console.log("DISCONNECT");
+	connection.on("stop", () => {
+		logger.info(`DISCONNECTED`);
 	});
 });
 
-server.listen(1935);
+server.listen(config.PORT);
+
+if ((module as any).hot) {
+	(module as any).hot.accept();
+	(module as any).hot.dispose(() => server.close());
+}

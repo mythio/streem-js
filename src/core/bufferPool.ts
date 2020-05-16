@@ -7,7 +7,6 @@ export default class BufferPool extends Readable {
 	private generatorFun: Generator<Connection>;
 
 	constructor(options?: object) {
-		console.log(options);
 		super(options);
 	}
 

@@ -1,5 +1,6 @@
 import chalk from "chalk";
-import * as config from "./";
+
+import { config } from "./config";
 
 enum LOG_LEVEL {
 	NONE = 0,
@@ -9,8 +10,6 @@ enum LOG_LEVEL {
 	DEBUG = 4
 }
 
-type Log = keyof typeof LOG_LEVEL;
-
 const logLevel = LOG_LEVEL[config.LOG_LEVEL];
 
 const getLocaleTime = (): string => {
@@ -18,28 +17,33 @@ const getLocaleTime = (): string => {
 	return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour12: false })}`;
 };
 
-export const log = (logType: Log, ...args: string[]): void => {
-	switch (LOG_LEVEL[logType]) {
-		case 1: {
-			if (logLevel < LOG_LEVEL.ERROR) return;
-			console.log(getLocaleTime, process.pid, chalk.bold.bgRedBright("E: "), ...args);
-			break;
-		}
-		case 2: {
-			if (logLevel < LOG_LEVEL.WARN) return;
-			console.log(getLocaleTime, process.pid, chalk.bold.bgYellowBright("W: "), ...args);
-			break;
-		}
-		case 3: {
-			if (logLevel < LOG_LEVEL.INFO) return;
-			console.log(getLocaleTime, process.pid, chalk.bold.bgGreenBright("I: "), ...args);
-			break;
-		}
-		case 4: {
-			if (logLevel < LOG_LEVEL.DEBUG) return;
-			console.log(getLocaleTime, process.pid, chalk.bold.bgBlueBright("D: "), ...args);
-		}
-		default:
-			break;
-	}
+const error = (message: string): void => {
+	if (logLevel < LOG_LEVEL.ERROR) return;
+
+	console.log(`[${getLocaleTime()}] ${chalk.bold.redBright(`E: ${message}`)}`);
+};
+
+const warn = (message: string): void => {
+	if (logLevel < LOG_LEVEL.ERROR) return;
+
+	console.log(`[${getLocaleTime()}] ${chalk.bold.yellowBright(`W: ${message}`)}`);
+};
+
+const info = (message: string): void => {
+	if (logLevel < LOG_LEVEL.ERROR) return;
+
+	console.log(`[${getLocaleTime()}] ${chalk.bold.whiteBright(`I: ${message}`)}`);
+};
+
+const debug = (message: string): void => {
+	if (logLevel < LOG_LEVEL.ERROR) return;
+
+	console.log(`[${getLocaleTime()}] ${chalk.bold.blueBright(`D: ${message}`)}`);
+};
+
+export const logger = {
+	error: error,
+	warn: warn,
+	info: info,
+	debug: debug
 };
